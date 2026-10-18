@@ -1,0 +1,231 @@
+{% extends "allianceauth/base-bs5.html" %}
+
+{% load i18n %}
+{% load django_bootstrap5 %}
+
+{% block page_title %}{% translate "Fuel Alert" %}{% endblock page_title %}
+
+{% block header_nav_brand %}
+    <i class="fas fa-gas-pump fa-fw"></i> {% translate "Fuel Alert" %}
+{% endblock header_nav_brand %}
+
+{% block content %}
+    <div class="row g-3">
+        <!-- Structure fuel overview -->
+        <div class="col-xl-8">
+            <div class="card border-0">
+                <div class="card-header">
+                    <div class="card-title mb-0">{% translate "Structure fuel" %}</div>
+                </div>
+                <div class="card-body">
+                    {% if rows %}
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>{% translate "Structure" %}</th>
+                                        <th>{% translate "Type" %}</th>
+                                        <th>{% translate "Fuel left" %}</th>
+                                        <th>{% translate "Fuel until (EVE)" %}</th>
+                                        <th>{% translate "Services" %}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in rows %}
+                                        {% with s=row.structure %}
+                                            <tr>
+                                                <td>
+                                                    <span class="badge text-bg-secondary">{{ s.corporation.corporation.corporation_ticker }}</span>
+                                                    {{ s.name }}
+                                                    {% if row.stale %}
+                                                        <i class="fas fa-clock text-warning ms-1" title="{% translate 'Corptools structure data is outdated' %}"></i>
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ s.type_name.name|default:"-" }}</td>
+                                                <td>
+                                                    {% if row.remaining %}
+                                                        <span class="badge text-bg-{{ row.level }}">{{ row.remaining }}</span>
+                                                    {% else %}
+                                                        <span class="badge text-bg-danger">{% translate "No fuel" %}</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="text-nowrap">{{ s.fuel_expires|date:"Y-m-d H:i"|default:"-" }}</td>
+                                                <td>
+                                                    {% for service in row.services %}
+                                                        <span class="badge {% if service.state == 'online' %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ service.name }}</span>
+                                                    {% empty %}
+                                                        -
+                                                    {% endfor %}
+                                                </td>
+                                            </tr>
+                                        {% endwith %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="text-body-secondary mb-0">
+                            {% translate "No structures visible. Structure data comes from Corptools: your corporation needs a corp audit with structures, and you need a Corptools corporation permission (e.g. own corp manager or show if director)." %}
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if pos_enabled %}
+                <!-- POS (control towers) fuel overview -->
+                <div class="card border-0 mt-3">
+                    <div class="card-header">
+                        <div class="card-title mb-0">{% translate "POS fuel (calculated)" %}</div>
+                    </div>
+                    <div class="card-body">
+                        {% if pos_rows %}
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>{% translate "POS" %}</th>
+                                            <th>{% translate "Type" %}</th>
+                                            <th>{% translate "State" %}</th>
+                                            <th class="text-end">{% translate "Fuel blocks" %}</th>
+                                            <th class="text-end">{% translate "Blocks / h" %}</th>
+                                            <th>{% translate "Fuel left" %}</th>
+                                            <th>{% translate "Fuel until (EVE)" %}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for row in pos_rows %}
+                                            {% with sb=row.starbase pos=row.pos %}
+                                                <tr>
+                                                    <td>
+                                                        <span class="badge text-bg-secondary">{{ sb.corporation.corporation.corporation_ticker }}</span>
+                                                        {{ row.name }}
+                                                        {% if row.stale %}
+                                                            <i class="fas fa-clock text-warning ms-1" title="{% translate 'Corptools starbase data is outdated' %}"></i>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>{{ sb.type_name.name|default:"-" }}</td>
+                                                    <td>{{ sb.get_state_display }}</td>
+                                                    <td class="text-end">{{ pos.fuel_blocks }}</td>
+                                                    <td class="text-end text-nowrap">
+                                                        {{ pos.blocks_per_hour|floatformat:"-2" }}
+                                                        {% if pos.sov_discount %}
+                                                            <span class="badge text-bg-info" title="{% translate 'Alliance holds sovereignty here: 25% less fuel' %}">Sov −25%</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if row.remaining %}
+                                                            <span class="badge text-bg-{{ row.level }}">{{ row.remaining }}</span>
+                                                        {% elif sb.state == "offline" %}
+                                                            <span class="badge text-bg-danger">{% translate "Offline" %}</span>
+                                                        {% else %}
+                                                            <span class="badge text-bg-danger">{% translate "No fuel" %}</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="text-nowrap">{{ pos.fuel_expires|date:"Y-m-d H:i"|default:"-" }}</td>
+                                                </tr>
+                                            {% endwith %}
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p class="small text-body-secondary mt-2 mb-0">
+                                {% translate "ESI only reports the fuel bay of a POS, so the end time is calculated: small 10, medium 20, large 40 blocks per hour, faction towers 10% or 20% less, 25% less with alliance sovereignty in the system. Compare Blocks / h once with the game." %}
+                            </p>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">
+                                {% translate "No POS visible. POS data comes from Corptools and needs a token with the Starbases scope from a character with the Director role." %}
+                            </p>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Own alert settings -->
+        <div class="col-xl-4">
+            <div class="card border-0">
+                <div class="card-header">
+                    <div class="card-title mb-0"><i class="fas fa-bell fa-fw"></i> {% translate "My alerts" %}</div>
+                </div>
+                <div class="card-body">
+                    <p class="small text-body-secondary">
+                        {% blocktranslate trimmed with hours=thresholds|join:"h, " %}
+                            You get one message when a structure drops below {{ hours }}h of fuel, and one when it runs out.
+                        {% endblocktranslate %}
+                    </p>
+
+                    <form method="post" action="{% url 'fuelalert:save_recipient' %}" id="fuelalert-settings">
+                        {% csrf_token %}
+                        {% bootstrap_field form.channel %}
+                        <div data-channel="telegram">
+                            {% bootstrap_field form.telegram_user %}
+                            <ol class="small text-body-secondary ps-3">
+                                <li>{% translate "Open Telegram and send /start to @CallMeBot_txtbot." %}</li>
+                                <li>{% translate "Enter your Telegram username above (Settings > Username in Telegram)." %}</li>
+                            </ol>
+                            <p class="small">
+                                <a href="https://t.me/CallMeBot_txtbot" target="_blank" rel="noopener noreferrer">
+                                    <i class="fab fa-telegram fa-fw"></i> @CallMeBot_txtbot
+                                </a>
+                            </p>
+                        </div>
+                        <div data-channel="whatsapp">
+                            {% bootstrap_field form.phone %}
+                            {% bootstrap_field form.api_key %}
+                            <ol class="small text-body-secondary ps-3">
+                                <li>{% translate "Add the CallMeBot number to your phone contacts (the current number is on callmebot.com)." %}</li>
+                                <li>{% translate 'Send it the WhatsApp message "I allow callmebot to send me messages".' %}</li>
+                                <li>{% translate "Enter the API key you get back above, together with your number in +49... format." %}</li>
+                            </ol>
+                            <p class="small">
+                                <a href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" target="_blank" rel="noopener noreferrer">
+                                    callmebot.com <i class="fas fa-external-link-alt fa-xs"></i>
+                                </a>
+                            </p>
+                        </div>
+                        {% bootstrap_field form.enabled %}
+                        {% bootstrap_field form.corporations %}
+                        <button type="submit" class="btn btn-primary w-100">{% translate "Save" %}</button>
+                    </form>
+
+                    {% if recipient %}
+                        <div class="d-flex gap-2 mt-2">
+                            <form method="post" action="{% url 'fuelalert:send_test' %}" class="flex-fill">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-success w-100">
+                                    <i class="fas fa-paper-plane fa-fw"></i> {% translate "Send test" %}
+                                </button>
+                            </form>
+                            <form method="post" action="{% url 'fuelalert:delete_recipient' %}" class="flex-fill"
+                                  onsubmit="return confirm('{% translate "Delete your phone number and key?" %}');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-danger w-100">
+                                    <i class="fas fa-trash fa-fw"></i> {% translate "Delete" %}
+                                </button>
+                            </form>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}
+
+{% block extra_script %}
+    // Show only the fields of the selected channel
+    (function () {
+        const form = document.getElementById("fuelalert-settings");
+        if (!form) { return; }
+        function update() {
+            const checked = form.querySelector('input[name="channel"]:checked');
+            const channel = checked ? checked.value : "whatsapp";
+            form.querySelectorAll("[data-channel]").forEach(function (el) {
+                el.classList.toggle("d-none", el.dataset.channel !== channel);
+            });
+        }
+        form.querySelectorAll('input[name="channel"]').forEach(function (el) {
+            el.addEventListener("change", update);
+        });
+        update();
+    })();
+{% endblock extra_script %}
